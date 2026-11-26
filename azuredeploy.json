@@ -3,9 +3,11 @@
   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
   "parameters": {
+    "vmName": {
+      "type": "string"
+    },
     "adminUsername": {
-      "type": "string",
-      "defaultValue": "aliadmin"
+      "type": "string"
     },
     "adminPassword": {
       "type": "secureString"
@@ -14,12 +16,21 @@
       "type": "string"
     }
   },
+  "variables": {
+    "location": "australiaeast",
+    "nicName": "[concat(parameters('vmName'), '-NIC')]",
+    "pipName": "[concat(parameters('vmName'), '-PIP')]",
+    "nsgName": "[concat(parameters('vmName'), '-NSG')]",
+    "vnetName": "[concat(parameters('vmName'), '-VNet')]",
+    "subnetName": "AliSubnet",
+    "computerName": "[substring(replace(parameters('vmName'), '-', ''), 0, 15)]"
+  },
   "resources": [
     {
       "type": "Microsoft.Network/publicIPAddresses",
       "apiVersion": "2023-11-01",
-      "name": "AliVM-PIP",
-      "location": "australiaeast",
+      "name": "[variables('pipName')]",
+      "location": "[variables('location')]",
       "sku": {
         "name": "Standard"
       },
@@ -30,8 +41,8 @@
     {
       "type": "Microsoft.Network/networkSecurityGroups",
       "apiVersion": "2023-11-01",
-      "name": "AliVM-NSG",
-      "location": "australiaeast",
+      "name": "[variables('nsgName')]",
+      "location": "[variables('location')]",
       "properties": {
         "securityRules": [
           {
@@ -53,15 +64,17 @@
     {
       "type": "Microsoft.Network/virtualNetworks",
       "apiVersion": "2023-11-01",
-      "name": "AliVNet",
-      "location": "australiaeast",
+      "name": "[variables('vnetName')]",
+      "location": "[variables('location')]",
       "properties": {
         "addressSpace": {
-          "addressPrefixes": ["10.0.0.0/16"]
+          "addressPrefixes": [
+            "10.0.0.0/16"
+          ]
         },
         "subnets": [
           {
-            "name": "AliSubnet",
+            "name": "[variables('subnetName')]",
             "properties": {
               "addressPrefix": "10.0.0.0/24"
             }
@@ -72,16 +85,16 @@
     {
       "type": "Microsoft.Network/networkInterfaces",
       "apiVersion": "2023-11-01",
-      "name": "AliVM-NIC",
-      "location": "australiaeast",
+      "name": "[variables('nicName')]",
+      "location": "[variables('location')]",
       "dependsOn": [
-        "[resourceId('Microsoft.Network/publicIPAddresses', 'AliVM-PIP')]",
-        "[resourceId('Microsoft.Network/networkSecurityGroups', 'AliVM-NSG')]",
-        "[resourceId('Microsoft.Network/virtualNetworks', 'AliVNet')]"
+        "[resourceId('Microsoft.Network/publicIPAddresses', variables('pipName'))]",
+        "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
       ],
       "properties": {
         "networkSecurityGroup": {
-          "id": "[resourceId('Microsoft.Network/networkSecurityGroups', 'AliVM-NSG')]"
+          "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]"
         },
         "ipConfigurations": [
           {
@@ -89,10 +102,10 @@
             "properties": {
               "privateIPAllocationMethod": "Dynamic",
               "publicIPAddress": {
-                "id": "[resourceId('Microsoft.Network/publicIPAddresses', 'AliVM-PIP')]"
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('pipName'))]"
               },
               "subnet": {
-                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', 'AliVNet', 'AliSubnet')]"
+                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('vnetName'), variables('subnetName'))]"
               }
             }
           }
@@ -102,17 +115,17 @@
     {
       "type": "Microsoft.Compute/virtualMachines",
       "apiVersion": "2023-09-01",
-      "name": "Ali-Windows-VM",
-      "location": "australiaeast",
+      "name": "[parameters('vmName')]",
+      "location": "[variables('location')]",
       "dependsOn": [
-        "[resourceId('Microsoft.Network/networkInterfaces', 'AliVM-NIC')]"
+        "[resourceId('Microsoft.Network/networkInterfaces', variables('nicName'))]"
       ],
       "properties": {
         "hardwareProfile": {
           "vmSize": "Standard_D2s_v3"
         },
         "osProfile": {
-          "computerName": "AliWindowsVM",
+          "computerName": "[variables('computerName')]",
           "adminUsername": "[parameters('adminUsername')]",
           "adminPassword": "[parameters('adminPassword')]",
           "windowsConfiguration": {
@@ -128,7 +141,7 @@
             "version": "latest"
           },
           "osDisk": {
-            "name": "Ali-Windows-OS-Disk",
+            "name": "[concat(parameters('vmName'), '-OS-Disk')]",
             "createOption": "FromImage",
             "diskSizeGB": 128,
             "managedDisk": {
@@ -139,7 +152,7 @@
         "networkProfile": {
           "networkInterfaces": [
             {
-              "id": "[resourceId('Microsoft.Network/networkInterfaces', 'AliVM-NIC')]"
+              "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('nicName'))]"
             }
           ]
         }
@@ -149,7 +162,11 @@
   "outputs": {
     "publicIP": {
       "type": "string",
-      "value": "[reference(resourceId('Microsoft.Network/publicIPAddresses', 'AliVM-PIP'), '2023-11-01').ipAddress]"
+      "value": "[reference(resourceId('Microsoft.Network/publicIPAddresses', variables('pipName')), '2023-11-01').ipAddress]"
+    },
+    "vmName": {
+      "type": "string",
+      "value": "[parameters('vmName')]"
     }
   }
 }
